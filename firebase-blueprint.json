@@ -1,0 +1,212 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile with role management and balances",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "streamer", "viewer"]
+        },
+        "balance": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["email", "role", "balance", "createdAt"]
+    },
+    "Room": {
+      "title": "Room",
+      "description": "Stream room details",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "streamerId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "inactive"]
+        },
+        "pricePerHour": {
+          "type": "number"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["name", "streamerId", "status", "pricePerHour", "createdAt"]
+    },
+    "Payment": {
+      "title": "Payment",
+      "description": "Manual admin-approved payments",
+      "type": "object",
+      "properties": {
+        "payerId": {
+          "type": "string"
+        },
+        "streamerId": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "platformFee": {
+          "type": "number"
+        },
+        "streamerFee": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["payerId", "streamerId", "amount", "platformFee", "streamerFee", "status", "createdAt"]
+    },
+    "WithdrawalRequest": {
+      "title": "WithdrawalRequest",
+      "description": "Streamer request to withdraw balance",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "amount", "status", "createdAt"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "Financial ledger transactions",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["credit", "debit"]
+        },
+        "amount": {
+          "type": "number"
+        },
+        "referenceId": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["userId", "type", "amount", "referenceId", "createdAt"]
+    },
+    "ActiveStream": {
+      "title": "ActiveStream",
+      "description": "WebRTC screen transmission tracking",
+      "type": "object",
+      "properties": {
+        "roomId": {
+          "type": "string"
+        },
+        "streamerId": {
+          "type": "string"
+        },
+        "viewerCount": {
+          "type": "number"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["roomId", "streamerId", "viewerCount", "startedAt"]
+    },
+    "RoomAccess": {
+      "title": "RoomAccess",
+      "description": "Realtime streaming room entry authorizations",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "roomId": {
+          "type": "string"
+        },
+        "userId": {
+          "type": "string"
+        },
+        "streamerId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "approved", "rejected"]
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "required": ["id", "roomId", "userId", "streamerId", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profiles indexed by individual user UID"
+    },
+    "rooms/{roomId}": {
+      "schema": "Room",
+      "description": "Streaming sessions channels"
+    },
+    "payments/{paymentId}": {
+      "schema": "Payment",
+      "description": "Manual admin-mediated viewers' access payments"
+    },
+    "withdrawalRequests/{requestId}": {
+      "schema": "WithdrawalRequest",
+      "description": "Streamer balance payout requests"
+    },
+    "transactions/{transactionId}": {
+      "schema": "Transaction",
+      "description": "Accounting ledger audits"
+    },
+    "activeStreams/{streamId}": {
+      "schema": "ActiveStream",
+      "description": "Actively broadcast signaling descriptors"
+    },
+    "roomAccess/{accessId}": {
+      "schema": "RoomAccess",
+      "description": "Realtime room permission list"
+    }
+  }
+}

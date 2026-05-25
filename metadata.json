@@ -1,0 +1,6 @@
+{
+  "name": "Bahia Stream",
+  "description": "Full-stack real-time screen sharing platform using WebRTC P2P, Socket.IO, Express, and Firebase Authentication with manual admin-approved payments.",
+  "requestFramePermissions": ["camera", "microphone", "display-capture"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

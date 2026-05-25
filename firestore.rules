@@ -1,0 +1,188 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Primative and Safe Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'natanmarinhocanalyt@gmail.com' && 
+        request.auth.token.email_verified == true
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // 3. Schema & Entity Validators (Anti-Update-Gaps)
+    function isValidUser(data) {
+      return data.email is string && data.email.size() <= 256
+        && data.displayName is string && data.displayName.size() <= 128
+        && data.role is string && (data.role == 'admin' || data.role == 'streamer' || data.role == 'viewer')
+        && data.balance is number && data.balance >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidRoom(data) {
+      return data.name is string && data.name.size() <= 128
+        && data.streamerId is string && isValidId(data.streamerId)
+        && data.status is string && (data.status == 'active' || data.status == 'inactive')
+        && data.pricePerHour is number && data.pricePerHour >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidPayment(data) {
+      return data.payerId is string && isValidId(data.payerId)
+        && data.streamerId is string && isValidId(data.streamerId)
+        && data.amount is number && data.amount >= 0
+        && data.platformFee is number && data.platformFee >= 0
+        && data.streamerFee is number && data.streamerFee >= 0
+        && data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected')
+        && data.createdAt is timestamp;
+    }
+
+    function isValidWithdrawalRequest(data) {
+      return data.userId is string && isValidId(data.userId)
+        && data.amount is number && data.amount > 0
+        && data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected')
+        && data.createdAt is timestamp;
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && isValidId(data.userId)
+        && data.type is string && (data.type == 'credit' || data.type == 'debit')
+        && data.amount is number && data.amount >= 0
+        && data.referenceId is string && data.referenceId.size() <= 128
+        && data.createdAt is timestamp;
+    }
+
+    function isValidActiveStream(data) {
+      return data.roomId is string && isValidId(data.roomId)
+        && data.streamerId is string && isValidId(data.streamerId)
+        && data.viewerCount is number && data.viewerCount >= 0
+        && data.startedAt is timestamp;
+    }
+
+    function isValidRoomAccess(data) {
+      return data.id is string && isValidId(data.id)
+        && data.roomId is string && isValidId(data.roomId)
+        && data.userId is string && isValidId(data.userId)
+        && data.streamerId is string && isValidId(data.streamerId)
+        && data.status is string && (data.status == 'pending' || data.status == 'approved' || data.status == 'rejected')
+        && data.createdAt is timestamp;
+    }
+
+    // 4. Collection Matches
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && (isAdmin() || isOwner(userId));
+      allow create: if isOwner(userId) 
+        && isValidUser(request.resource.data) 
+        && request.resource.data.role != 'admin'
+        && request.resource.data.balance == 0
+        && request.resource.data.createdAt == request.time;
+      allow update: if isOwner(userId) 
+        && isValidUser(request.resource.data)
+        && request.resource.data.email == resource.data.email
+        && (request.resource.data.role == resource.data.role || (resource.data.role == 'viewer' && request.resource.data.role == 'streamer') || (resource.data.role == 'streamer' && request.resource.data.role == 'viewer'))
+        && request.resource.data.balance == resource.data.balance
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /rooms/{roomId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() 
+        && isValidRoom(request.resource.data) 
+        && request.resource.data.streamerId == request.auth.uid
+        && request.resource.data.createdAt == request.time;
+      allow update: if isSignedIn() 
+        && isValidRoom(request.resource.data)
+        && resource.data.streamerId == request.auth.uid
+        && request.resource.data.streamerId == request.auth.uid
+        && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isSignedIn() && resource.data.streamerId == request.auth.uid;
+    }
+
+    match /payments/{paymentId} {
+      allow get: if isSignedIn() && (isAdmin() || resource.data.payerId == request.auth.uid || resource.data.streamerId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.payerId == request.auth.uid || resource.data.streamerId == request.auth.uid);
+      allow create: if isSignedIn() 
+        && isValidPayment(request.resource.data)
+        && request.resource.data.payerId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow update: if isAdmin() 
+        && isValidPayment(request.resource.data)
+        && request.resource.data.payerId == resource.data.payerId
+        && request.resource.data.streamerId == resource.data.streamerId
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /withdrawalRequests/{requestId} {
+      allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create: if isSignedIn()
+        && isValidWithdrawalRequest(request.resource.data)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow update: if isAdmin()
+        && isValidWithdrawalRequest(request.resource.data)
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.amount == resource.data.amount
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    match /transactions/{transactionId} {
+      allow get, list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow create, update, delete: if false; // Controlled purely server-side
+    }
+
+    match /activeStreams/{streamId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() 
+        && isValidActiveStream(request.resource.data)
+        && request.resource.data.streamerId == request.auth.uid
+        && request.resource.data.startedAt == request.time;
+      allow update: if isSignedIn() 
+        && isValidActiveStream(request.resource.data)
+        && resource.data.streamerId == request.auth.uid
+        && request.resource.data.streamerId == request.auth.uid
+        && request.resource.data.startedAt == resource.data.startedAt;
+      allow delete: if isSignedIn() && resource.data.streamerId == request.auth.uid;
+    }
+
+    match /roomAccess/{accessId} {
+      allow get: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid || resource.data.streamerId == request.auth.uid);
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid || resource.data.streamerId == request.auth.uid);
+      allow create: if isSignedIn()
+        && isValidRoomAccess(request.resource.data)
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && request.resource.data.createdAt == request.time;
+      allow update: if isSignedIn()
+        && isValidRoomAccess(request.resource.data)
+        && request.resource.data.id == resource.data.id
+        && request.resource.data.roomId == resource.data.roomId
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.streamerId == resource.data.streamerId
+        && request.resource.data.createdAt == resource.data.createdAt
+        && (isAdmin() || resource.data.streamerId == request.auth.uid);
+      allow delete: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+  }
+}
